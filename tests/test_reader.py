@@ -1,4 +1,6 @@
+from email.message import Message
 from unittest.mock import MagicMock
+from urllib.error import HTTPError
 
 import pytest
 
@@ -8,6 +10,7 @@ from src.utils.reader import (
     MAX_BODY_CHARS,
     extract_paragraphs,
     fetch_article_text,
+    fetch_with_retry,
     read_articles,
     reader_node,
     resolve_url,
@@ -132,6 +135,55 @@ def test_unknown_charset_falls_back_to_utf8(mocker):
     fake_page(mocker, f"<p>{LONG}</p>".encode(), content_type="text/html; charset=made-up")
 
     assert fetch_article_text("https://pub.example/a") == LONG
+
+
+def _http_error(code: int, retry_after: str | None = None) -> HTTPError:
+    headers = Message()
+    if retry_after is not None:
+        headers["Retry-After"] = retry_after
+    return HTTPError("https://pub.example/a", code, "err", headers, None)
+
+
+def test_rate_limited_fetch_is_retried_once_after_retry_after(mocker, no_sleep):
+    fetch = mocker.patch.object(
+        reader, "fetch_article_text", side_effect=[_http_error(429, "3"), LONG]
+    )
+
+    assert fetch_with_retry("https://pub.example/a") == LONG
+    assert fetch.call_count == 2
+    no_sleep.assert_called_once_with(3.0)
+
+
+def test_retry_wait_is_capped_and_tolerates_http_dates(mocker, no_sleep):
+    mocker.patch.object(
+        reader, "fetch_article_text", side_effect=[_http_error(503, "Wed, 21 Oct 2026 07:28:00 GMT"), LONG]
+    )
+    fetch_with_retry("https://pub.example/a")
+    no_sleep.assert_called_once_with(reader.DEFAULT_RETRY_WAIT_SECONDS)
+
+    no_sleep.reset_mock()
+    mocker.patch.object(reader, "fetch_article_text", side_effect=[_http_error(429, "600"), LONG])
+    fetch_with_retry("https://pub.example/a")
+    no_sleep.assert_called_once_with(reader.MAX_RETRY_WAIT_SECONDS)
+
+
+def test_other_http_errors_are_not_retried(mocker):
+    fetch = mocker.patch.object(reader, "fetch_article_text", side_effect=_http_error(403))
+
+    with pytest.raises(HTTPError):
+        fetch_with_retry("https://pub.example/a")
+    assert fetch.call_count == 1
+
+
+def test_errors_name_the_publisher_not_the_google_link(mocker):
+    mocker.patch.object(
+        reader, "gnewsdecoder", return_value={"success": True, "decoded_url": "https://pub.example/a"}
+    )
+    mocker.patch.object(reader, "fetch_article_text", side_effect=_http_error(403))
+
+    _, errors = read_articles([Article(title="A", url=GOOGLE)], delay=0)
+
+    assert errors[0].startswith("reader: https://pub.example/a:")
 
 
 # --- read_articles and reader_node -------------------------------------------

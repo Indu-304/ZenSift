@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, date, datetime
 from html import escape
 from urllib.parse import urlparse
@@ -24,6 +25,9 @@ NOTHING_READABLE = (
 FOOTER = "Summaries are AI-generated from the original articles. Follow a link for the full story."
 DEGRADED_FOOTER = "Opening lines are quoted from the original articles. Follow a link for the full story."
 EXCERPT_CHARS = 320
+
+_DOMAIN = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$", re.IGNORECASE)
+_SECOND_LEVEL = {"co", "com", "org", "net", "ac", "gov", "edu"}
 
 # Beige-coffee palette.
 PAGE_BG = "#f3ede4"
@@ -84,8 +88,20 @@ def build_subject(
     return f"ZenSift · {len(articles)} {reads} · {day}"
 
 
+def _display_source(source: str) -> str:
+    """Turn a bare domain like 'tech-insider.org' into 'Tech Insider' so mail apps don't auto-link it."""
+    source = source.strip()
+    if not _DOMAIN.match(source):
+        return source
+    parts = [p for p in source.lower().split(".") if p != "www"][:-1]
+    while len(parts) > 1 and parts[-1] in _SECOND_LEVEL:
+        parts.pop()
+    return parts[-1].replace("-", " ").title() if parts else source
+
+
 def _link_label(article: Article) -> str:
-    return f"Read at {article.source}" if article.source else "Read the full story"
+    source = _display_source(article.source)
+    return f"Read at {source}" if source else "Read the full story"
 
 
 def _excerpt(body: str) -> str:
@@ -115,10 +131,11 @@ def _empty_message(unreadable: bool) -> str:
 def _html_item(article: Article, first: bool) -> str:
     url = _safe_url(_href(article))
     border = "" if first else f"border-top:1px solid {DIVIDER};"
+    source_name = _display_source(article.source)
     source = (
         f'<p style="margin:0 0 10px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;'
-        f'color:{LATTE};">{escape(article.source)}</p>'
-        if article.source
+        f'color:{LATTE};">{escape(source_name)}</p>'
+        if source_name
         else ""
     )
     lead_text = _lead_text(article)
@@ -157,18 +174,18 @@ def render_html(
         f'<body style="margin:0;padding:0;background:{PAGE_BG};">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{PAGE_BG};">'
         '<tr><td align="center" style="padding:32px 12px;">'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;'
         f'background:{CARD_BG};border-radius:10px;font-family:{FONT};">'
-        '<tr><td style="padding:36px 36px 8px;">'
+        '<tr><td style="padding:40px 44px 8px;">'
         f'<p style="margin:0;font-size:13px;letter-spacing:4px;text-transform:uppercase;color:{COFFEE};">ZenSift</p>'
         f'<p style="margin:6px 0 0;font-size:14px;font-style:italic;color:{LATTE};">{escape(_pretty_date(digest_date))}</p>'
         f'<div style="width:32px;height:1px;background:{COFFEE};margin:20px 0 0;line-height:1px;font-size:1px;">&nbsp;</div>'
         "</td></tr>"
-        '<tr><td style="padding:8px 36px 12px;">'
+        '<tr><td style="padding:8px 44px 16px;">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{notice}{items}</table>'
         "</td></tr>"
         "</table>"
-        f'<p style="max-width:520px;margin:20px auto 0;font-family:{FONT};font-size:12px;line-height:1.6;'
+        f'<p style="max-width:680px;margin:20px auto 0;font-family:{FONT};font-size:12px;line-height:1.6;'
         f'color:{LATTE};text-align:center;">{escape(DEGRADED_FOOTER if degraded else FOOTER)}</p>'
         "</td></tr></table></body></html>"
     )
@@ -183,8 +200,8 @@ def render_text(
     if not articles:
         lines += [_empty_message(unreadable), ""]
     for article in articles:
-        if article.source:
-            lines.append(article.source.upper())
+        if source_name := _display_source(article.source):
+            lines.append(source_name.upper())
         if lead_text := _lead_text(article):
             lines.append(lead_text)
         lines += [f"{_link_label(article)}: {_href(article)}", "", "---", ""]
