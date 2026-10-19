@@ -1,6 +1,4 @@
-# ZenSift user configuration. Secrets belong in .env, never here.
-
-email: "you@example.com"
+# ZenSift user configuration. Secrets (API keys, your email address) belong in .env.
 
 # 24h "HH:MM" in UTC. The GitHub Actions cron schedule must be kept in sync.
 delivery_time: "07:00"
@@ -30,6 +28,8 @@ sifter:
   min_margin: 0.05 # interest score must beat the closest avoid score by more than this
   max_articles: 8 # hard cap on articles sent to the Editor LLM (5-10)
 
-fetcher:
-  request_delay_seconds: 1
-  max_items_per_feed: 15
+# Tone rules applied after the Editor scores each article (tone 1.0 = calm, 0.0 = alarmist).
+digest:
+  hard_drop_tone: 0.15 # drop panic and brainrot below this, whatever the topic
+  avoid_drop_tone: 0.40 # drop avoid-adjacent articles below this tone...
+  avoid_hit_similarity: 0.60 # ...where "avoid-adjacent" means avoid score >= this

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import operator
+from datetime import date
 from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel
+
+from src.config import DigestSettings, SifterSettings
 
 
 class Article(BaseModel):
@@ -21,9 +24,12 @@ class Article(BaseModel):
 
 class ZenSiftState(TypedDict, total=False):
     # Input
-    email: str
     interests: list[str]
     avoid: list[str]
+    sifter: SifterSettings
+    digest: DigestSettings
+    digest_date: date
+    idempotency_key: str
 
     # Planner output
     rss_urls: list[str]
@@ -37,8 +43,11 @@ class ZenSiftState(TypedDict, total=False):
     digest_articles: list[Article]
 
     # Output
+    email_subject: str
     email_html: str
-    delivery_status: Literal["sent", "failed"]
+    email_text: str
+    email_id: str
+    delivery_status: Literal["sent", "already_sent", "failed"]
 
     # Control flow / observability
     llm_failed: bool

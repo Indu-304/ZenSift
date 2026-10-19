@@ -1,10 +1,14 @@
+from datetime import date
+
 import pytest
 
+from src.config import ZenSiftConfig
 from src.graph import workflow
-from src.graph.workflow import Article, compile_workflow
+from src.graph.workflow import Article, compile_workflow, initial_state
 from src.utils.deduplicate import get_sent_urls, mark_sent
 
-INPUT = {"email": "a@b.com", "interests": ["open source LLMs"], "errors": []}
+CONFIG = ZenSiftConfig(interests=["open source LLMs"], avoid=["politics"])
+INPUT = initial_state(CONFIG, today=date(2026, 10, 20))
 
 
 @pytest.fixture(autouse=True)
@@ -39,9 +43,36 @@ def _urls(articles: list[Article]) -> list[str]:
 def test_graph_runs_end_to_end_with_stub_nodes():
     result = compile_workflow().invoke(INPUT)
 
-    assert result["email"] == "a@b.com"
+    # No Resend credentials in tests, so delivery fails cleanly instead of sending.
     assert result["delivery_status"] == "failed"
+    assert result["email_subject"].startswith("ZenSift · a quiet day")
     assert not result.get("degraded")
+
+
+def test_initial_state_carries_config_date_and_daily_key():
+    state = initial_state(CONFIG, today=date(2026, 10, 20))
+
+    assert state["interests"] == ["open source LLMs"]
+    assert state["avoid"] == ["politics"]
+    assert state["sifter"] == CONFIG.sifter and state["digest"] == CONFIG.digest
+    assert state["idempotency_key"] == "daily-digest/2026-10-20"
+
+
+def test_force_send_uses_a_unique_key_each_time():
+    a = initial_state(CONFIG, today=date(2026, 10, 20), force_send=True)["idempotency_key"]
+    b = initial_state(CONFIG, today=date(2026, 10, 20), force_send=True)["idempotency_key"]
+
+    assert a.startswith("daily-digest/2026-10-20/manual-") and a != b
+
+
+def test_already_sent_does_not_record_urls(mocker, isolated_db):
+    articles = _articles(2)
+    mocker.patch.object(workflow, "fetcher_node", return_value={"raw_articles": articles})
+    mocker.patch.object(workflow, "delivery_node", return_value={"delivery_status": "already_sent"})
+
+    compile_workflow().invoke(INPUT)
+
+    assert get_sent_urls(_urls(articles), isolated_db) == set()
 
 
 def test_deduplicate_filters_urls_already_in_sqlite(mocker, isolated_db):

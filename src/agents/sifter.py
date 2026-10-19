@@ -15,15 +15,16 @@ from chromadb.config import Settings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from src.agents.llm import build_embeddings, llm_retry
+from src.config import SifterSettings
 from src.graph.state import Article, ZenSiftState
 
 logger = logging.getLogger(__name__)
 
-# Middle of the zero-junk range (0.60-0.64 at margin 0.05) across two real runs.
-SIMILARITY_THRESHOLD = 0.62
-# Interest score must beat the closest avoid score by more than this.
-MIN_MARGIN = 0.05
-MAX_ARTICLES = 8
+# Defaults live in SifterSettings (config.yaml overrides them); calibration notes are there too.
+_DEFAULTS = SifterSettings()
+SIMILARITY_THRESHOLD = _DEFAULTS.similarity_threshold
+MIN_MARGIN = _DEFAULTS.min_margin
+MAX_ARTICLES = _DEFAULTS.max_articles
 
 
 def article_text(article: Article) -> str:
@@ -129,5 +130,14 @@ def sifter_node(state: ZenSiftState) -> dict:
     if not articles:
         return {"sifted_articles": []}
     # Errors propagate on purpose: the workflow's llm_guarded wrapper routes them to fallback.
-    kept = sift(state["interests"], articles, build_embeddings(), avoid=state.get("avoid"))
+    settings = state.get("sifter") or _DEFAULTS
+    kept = sift(
+        state["interests"],
+        articles,
+        build_embeddings(),
+        avoid=state.get("avoid"),
+        threshold=settings.similarity_threshold,
+        min_margin=settings.min_margin,
+        max_articles=settings.max_articles,
+    )
     return {"sifted_articles": kept}
