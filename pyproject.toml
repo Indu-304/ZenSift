@@ -1,0 +1,25 @@
+[project]
+name = "zensift"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "“indu-304”",email = "“d.indusree@gmail.com”"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = "^3.12"
+dependencies = [
+    "langgraph (>=1.2.16,<2.0.0)",
+    "google-generativeai (>=0.8.6,<0.9.0)",
+    "chromadb (>=1.5.9,<2.0.0)",
+    "feedparser (>=6.0.14,<7.0.0)",
+    "resend (>=2.50.0,<3.0.0)",
+    "python-dotenv (>=1.2.4,<2.0.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "langchain-google-genai (>=4.4.2,<5.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
