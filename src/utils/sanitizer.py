@@ -27,7 +27,7 @@ def wrap_article(article: Article, article_id: int) -> str:
         f'<article id="{article_id}">\n'
         f"<title>{_clean(article.title)}</title>\n"
         f"<source>{_clean(article.source)}</source>\n"
-        f"<text>{_clean(article.snippet)}</text>\n"
+        f"<text>{_clean(article.body)}</text>\n"
         f"</article>"
     )
 

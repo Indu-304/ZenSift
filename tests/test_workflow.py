@@ -26,9 +26,25 @@ def stub_sifter(mocker):
 
 
 @pytest.fixture(autouse=True)
+def stub_reader(mocker):
+    return mocker.patch.object(
+        workflow, "reader_node", side_effect=lambda s: {"sifted_articles": s.get("sifted_articles", [])}
+    )
+
+
+@pytest.fixture(autouse=True)
 def stub_editor(mocker):
     return mocker.patch.object(
         workflow, "editor_node", side_effect=lambda s: {"digest_articles": s.get("sifted_articles", [])}
+    )
+
+
+@pytest.fixture(autouse=True)
+def stub_fallback_reader(mocker):
+    return mocker.patch.object(
+        workflow,
+        "read_articles",
+        side_effect=lambda arts: ([a.model_copy(update={"body": "text"}) for a in arts], []),
     )
 
 
@@ -142,6 +158,44 @@ def test_fallback_never_resends_already_sent_articles(mocker, isolated_db):
     result = compile_workflow().invoke(INPUT)
 
     assert _urls(result["digest_articles"]) == ["https://x/1", "https://x/2", "https://x/3"]
+
+
+def test_fallback_skips_unreadable_articles(mocker):
+    articles = _articles(6)
+    mocker.patch.object(workflow, "fetcher_node", return_value={"raw_articles": articles})
+    mocker.patch.object(workflow, "sifter_node", side_effect=RuntimeError("down"))
+    mocker.patch.object(
+        workflow,
+        "read_articles",
+        return_value=([a.model_copy(update={"body": "text"}) for a in articles[2:]], ["r", "r"]),
+    )
+
+    result = compile_workflow().invoke(INPUT)
+
+    assert _urls(result["digest_articles"]) == ["https://x/2", "https://x/3", "https://x/4"]
+
+
+def test_fallback_reuses_articles_the_reader_already_read(mocker, stub_fallback_reader):
+    read = [a.model_copy(update={"body": "text"}) for a in _articles(4)]
+    mocker.patch.object(workflow, "fetcher_node", return_value={"raw_articles": _articles(4)})
+    mocker.patch.object(workflow, "reader_node", return_value={"sifted_articles": read})
+    mocker.patch.object(workflow, "editor_node", side_effect=RuntimeError("429"))
+
+    result = compile_workflow().invoke(INPUT)
+
+    assert [a.body for a in result["digest_articles"]] == ["text"] * 3
+    stub_fallback_reader.assert_not_called()
+
+
+def test_sanitizer_receives_only_articles_the_reader_kept(mocker):
+    articles = _articles(3)
+    mocker.patch.object(workflow, "fetcher_node", return_value={"raw_articles": articles})
+    mocker.patch.object(workflow, "reader_node", return_value={"sifted_articles": articles[:1]})
+    sanitizer = mocker.spy(workflow, "sanitizer_node")
+
+    compile_workflow().invoke(INPUT)
+
+    assert _urls(sanitizer.call_args.args[0]["sifted_articles"]) == ["https://x/0"]
 
 
 def test_successful_delivery_records_sent_urls(mocker, isolated_db):
