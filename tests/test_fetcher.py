@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
@@ -10,8 +11,9 @@ from src.utils.fetcher import (
     download_feed,
     fetch_all,
     fetcher_node,
-    hn_rss_url,
+    hn_search_url,
     parse_feed,
+    parse_hn_search,
     strip_html,
 )
 
@@ -34,13 +36,17 @@ GOOGLE_NEWS_RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
 </item>
 </channel></rss>"""
 
-HN_RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel><title>Hacker News: Newest</title>
-<item>
-  <title>Show HN: A tiny open-source LLM</title>
-  <link>https://github.com/example/tiny-llm</link>
-</item>
-</channel></rss>"""
+HN_JSON = json.dumps(
+    {
+        "hits": [
+            {"objectID": "1", "title": "Show HN: A tiny open-source LLM", "url": "https://github.com/example/tiny-llm", "points": 120},
+            {"objectID": "2", "title": "Ask HN: Best open LLM?", "url": None, "story_text": "<p>Curious &amp; asking</p>"},
+            {"objectID": "3", "title": "", "url": "https://x"},
+        ]
+    }
+).encode()
+
+HN_URL = "https://hn.algolia.com/api/v1/search?query=x"
 
 
 def fake_response(body: bytes) -> MagicMock:
@@ -75,13 +81,17 @@ def test_strip_html(raw, expected):
 # --- URL building ------------------------------------------------------------
 
 
-def test_hn_rss_url_encodes_keyword_and_filters():
-    params = parse_qs(urlparse(hn_rss_url("C++ & LLMs", count=5)).query)
+def test_hn_search_url_encodes_keyword_and_filters():
+    url = hn_search_url("C++ & LLMs", count=5, now=1_000_000)
 
-    assert params["q"] == ["C++ & LLMs"]
-    assert params["points"] == [str(fetcher.HN_MIN_POINTS)]
-    assert params["count"] == ["5"]
-    assert params["description"] == ["0"]
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == fetcher.HN_SEARCH_API
+    assert params["query"] == ["C++ & LLMs"]
+    assert params["tags"] == ["story"]
+    since = 1_000_000 - fetcher.HN_LOOKBACK_SECONDS
+    assert params["numericFilters"] == [f"points>{fetcher.HN_MIN_POINTS},created_at_i>{since}"]
+    assert params["hitsPerPage"] == ["5"]
 
 
 # --- download_feed -----------------------------------------------------------
@@ -146,11 +156,35 @@ def test_parse_feed_raises_on_garbage():
         parse_feed(b"<html>not a feed", "x")
 
 
+# --- parse_hn_search ---------------------------------------------------------
+
+
+def test_parse_hn_search_maps_hits_and_links_self_posts_to_discussion():
+    articles = parse_hn_search(HN_JSON)
+
+    assert [a.url for a in articles] == [
+        "https://github.com/example/tiny-llm",
+        "https://news.ycombinator.com/item?id=2",
+    ]
+    assert articles[1].snippet == "Curious & asking"
+    assert all(a.source == "Hacker News" for a in articles)
+
+
+def test_parse_hn_search_respects_max_items():
+    assert len(parse_hn_search(HN_JSON, max_items=1)) == 1
+
+
+@pytest.mark.parametrize("body", [b"not json", b"[]", b'{"hits": "nope"}', b"{}"])
+def test_parse_hn_search_rejects_bad_payloads(body):
+    with pytest.raises(ValueError):
+        parse_hn_search(body)
+
+
 # --- fetch_all ---------------------------------------------------------------
 
 
 def test_fetch_all_sleeps_between_requests_not_before_first(mocker, no_sleep):
-    mocker.patch.object(fetcher, "download_feed", return_value=HN_RSS)
+    mocker.patch.object(fetcher, "download_feed", return_value=GOOGLE_NEWS_RSS)
 
     fetch_all(["https://a", "https://b", "https://c"], delay=1.0)
 
@@ -173,23 +207,24 @@ def test_fetch_all_default_backpressure_is_one_second():
 )
 def test_fetch_all_skips_failing_feed_and_continues(mocker, no_sleep, error):
     mocker.patch.object(
-        fetcher, "download_feed", side_effect=[GOOGLE_NEWS_RSS, error, HN_RSS]
+        fetcher, "download_feed", side_effect=[GOOGLE_NEWS_RSS, error, HN_JSON]
     )
 
     articles, errors = fetch_all(
-        ["https://news.google.com/1", "https://bad", "https://hnrss.org/newest?q=x"]
+        ["https://news.google.com/1", "https://bad", HN_URL]
     )
 
-    assert len(articles) == 3
+    assert len(articles) == 4
     assert len(errors) == 1 and "https://bad" in errors[0]
 
 
-def test_fetch_all_labels_sources_by_host(mocker, no_sleep):
-    mocker.patch.object(fetcher, "download_feed", return_value=HN_RSS)
+def test_fetch_all_dispatches_parser_by_host(mocker, no_sleep):
+    mocker.patch.object(fetcher, "download_feed", side_effect=[GOOGLE_NEWS_RSS, HN_JSON])
 
-    articles, _ = fetch_all(["https://hnrss.org/newest?q=llm"])
+    articles, errors = fetch_all(["https://news.google.com/rss/search?q=a", HN_URL])
 
-    assert articles[0].source == "Hacker News"
+    assert errors == []
+    assert {a.source for a in articles} == {"Tagesspiegel", "Google News", "Hacker News"}
 
 
 def test_fetch_all_with_no_urls_makes_no_requests(mocker, no_sleep):
@@ -204,8 +239,9 @@ def test_fetch_all_with_no_urls_makes_no_requests(mocker, no_sleep):
 
 
 def test_fetcher_node_fetches_google_urls_then_hn_keywords(mocker, no_sleep):
+    mocker.patch.object(fetcher.time, "time", return_value=1_000_000)
     download = mocker.patch.object(
-        fetcher, "download_feed", side_effect=[GOOGLE_NEWS_RSS, HN_RSS]
+        fetcher, "download_feed", side_effect=[GOOGLE_NEWS_RSS, HN_JSON]
     )
 
     result = fetcher_node(
@@ -213,8 +249,11 @@ def test_fetcher_node_fetches_google_urls_then_hn_keywords(mocker, no_sleep):
     )
 
     called_urls = [c.args[0] for c in download.call_args_list]
-    assert called_urls == ["https://news.google.com/rss/search?q=a", hn_rss_url("open LLM")]
-    assert len(result["raw_articles"]) == 3
+    assert called_urls == [
+        "https://news.google.com/rss/search?q=a",
+        hn_search_url("open LLM", now=1_000_000),
+    ]
+    assert len(result["raw_articles"]) == 4
     assert result["errors"] == []
 
 
