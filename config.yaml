@@ -26,7 +26,7 @@ avoid:
 
 # Tunables (safe defaults; override only if needed)
 sifter:
-  similarity_threshold: 0.64 # calibrated on real scores; recalibrate after editing topics
+  similarity_threshold: 0.62 # calibrated on real scores; recalibrate after editing topics
   min_margin: 0.05 # interest score must beat the closest avoid score by more than this
   max_articles: 8 # hard cap on articles sent to the Editor LLM (5-10)
 

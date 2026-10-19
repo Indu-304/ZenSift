@@ -19,8 +19,8 @@ from src.graph.state import Article, ZenSiftState
 
 logger = logging.getLogger(__name__)
 
-# Calibrated on one real run (scores clustered 0.54-0.70); recalibrate when wording changes.
-SIMILARITY_THRESHOLD = 0.64
+# Middle of the zero-junk range (0.60-0.64 at margin 0.05) across two real runs.
+SIMILARITY_THRESHOLD = 0.62
 # Interest score must beat the closest avoid score by more than this.
 MIN_MARGIN = 0.05
 MAX_ARTICLES = 8
