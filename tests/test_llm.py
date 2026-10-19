@@ -1,5 +1,11 @@
 import pytest
-from langchain_core.exceptions import ModelAPIError, ModelRateLimitError
+from langchain_core.exceptions import (
+    ModelAPIError,
+    ModelAuthenticationError,
+    ModelNotFoundError,
+    ModelPermissionDeniedError,
+    ModelRateLimitError,
+)
 
 from src.agents import llm
 
@@ -37,6 +43,26 @@ def test_transient_errors(exc):
 )
 def test_non_transient_errors(exc):
     assert not llm.is_transient(exc)
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ModelNotFoundError("404"),
+        ModelAuthenticationError("401"),
+        ModelPermissionDeniedError("403"),
+        CodedError(404),
+        chained(CodedError(401)),
+    ],
+)
+def test_config_errors(exc):
+    assert llm.is_config_error(exc)
+    assert not llm.is_transient(exc)
+
+
+@pytest.mark.parametrize("exc", [ValueError("bad"), CodedError(400), CodedError(429), ModelAPIError("500")])
+def test_not_config_errors(exc):
+    assert not llm.is_config_error(exc)
 
 
 def test_build_embeddings_reads_model_from_env(mocker, monkeypatch):
