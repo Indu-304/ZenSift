@@ -14,6 +14,13 @@ def stub_planner(mocker):
     )
 
 
+@pytest.fixture(autouse=True)
+def stub_sifter(mocker):
+    return mocker.patch.object(
+        workflow, "sifter_node", side_effect=lambda s: {"sifted_articles": s.get("fresh_articles", [])}
+    )
+
+
 def _articles(n: int) -> list[Article]:
     return [Article(title=f"t{i}", url=f"https://x/{i}") for i in range(n)]
 

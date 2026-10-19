@@ -9,6 +9,13 @@ def isolated_db(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_api_keys(monkeypatch):
+    # Without a key, any accidentally un-mocked Gemini client fails instead of calling the API.
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def block_feed_network(mocker):
     return mocker.patch(
         "src.utils.fetcher.urlopen",

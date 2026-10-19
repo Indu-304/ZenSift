@@ -14,6 +14,7 @@ class Article(BaseModel):
     snippet: str = ""
     source: str = ""
     similarity: float | None = None
+    avoid_similarity: float | None = None
     summary: str | None = None
     tone_score: float | None = None
 
@@ -22,6 +23,7 @@ class ZenSiftState(TypedDict, total=False):
     # Input
     email: str
     interests: str
+    avoid: list[str]
 
     # Planner output
     rss_urls: list[str]

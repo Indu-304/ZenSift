@@ -5,13 +5,21 @@ email: "you@example.com"
 # 24h "HH:MM" in UTC. The GitHub Actions cron schedule must be kept in sync.
 delivery_time: "07:00"
 
+# Describe what you WANT. Don't write "no X" here: embeddings can't negate, so
+# "no politics" would actually attract political articles. Use `avoid` instead.
 interests: >
   German AI master's program policies and open-source LLMs.
-  No political drama, no rage-bait, no celebrity gossip.
+
+# Topics to filter out. An article is dropped if it's at least as close to any
+# of these as it is to your interests. One topic per line works best.
+avoid:
+  - political drama and partisan fighting
+  - outrage, rage-bait and culture-war controversy
+  - celebrity gossip
 
 # Tunables (safe defaults; override only if needed)
 sifter:
-  similarity_threshold: 0.75
+  similarity_threshold: 0.75 # calibrate from real scores (logged by the Sifter)
   max_articles: 8 # hard cap on articles sent to the Editor LLM (5-10)
 
 fetcher:
