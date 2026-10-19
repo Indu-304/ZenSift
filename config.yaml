@@ -1,0 +1,19 @@
+# ZenSift user configuration. Secrets belong in .env, never here.
+
+email: "you@example.com"
+
+# 24h "HH:MM" in UTC. The GitHub Actions cron schedule must be kept in sync.
+delivery_time: "07:00"
+
+interests: >
+  German AI master's program policies and open-source LLMs.
+  No political drama, no rage-bait, no celebrity gossip.
+
+# Tunables (safe defaults; override only if needed)
+sifter:
+  similarity_threshold: 0.75
+  max_articles: 8 # hard cap on articles sent to the Editor LLM (5-10)
+
+fetcher:
+  request_delay_seconds: 1
+  max_items_per_feed: 15
