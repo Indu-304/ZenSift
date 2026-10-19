@@ -9,7 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field, StringConstraints
 
-from src.agents.llm import build_chat_model, is_transient, llm_retry
+from src.agents.llm import build_chat_model, is_config_error, is_transient, llm_retry
 from src.graph.state import ZenSiftState
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ EDITOR_SYSTEM_PROMPT = (
 
 class EditorOutput(BaseModel):
     summary: Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=600)] = Field(
-        description="Exactly two calm, objective sentences based only on the article text."
+        description="At most three calm, objective sentences based only on the article text."
     )
     tone_score: float = Field(
         ge=0.0,
@@ -64,8 +64,8 @@ def editor_node(state: ZenSiftState) -> dict:
         try:
             output = summarize(block, llm)
         except Exception as exc:
-            if is_transient(exc):
-                # Gemini is down even after retries; don't burn minutes on the rest.
+            if is_transient(exc) or is_config_error(exc):
+                # Gemini is down or misconfigured; every remaining article would fail the same way.
                 raise
             logger.warning("Editor skipped %s: %r", article.url, exc)
             errors.append(f"editor: {article.url}: {exc!r}")

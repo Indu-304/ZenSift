@@ -5,7 +5,13 @@ from __future__ import annotations
 import logging
 import os
 
-from langchain_core.exceptions import ModelAPIError, ModelRateLimitError
+from langchain_core.exceptions import (
+    ModelAPIError,
+    ModelAuthenticationError,
+    ModelNotFoundError,
+    ModelPermissionDeniedError,
+    ModelRateLimitError,
+)
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from tenacity import (
     before_sleep_log,
@@ -17,23 +23,38 @@ from tenacity import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CHAT_MODEL = "gemini-2.5-flash"
+# Pin a stable model, not a "-latest" alias, so behaviour only changes when we choose.
+DEFAULT_CHAT_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 # 1 initial call + 3 retries.
 LLM_MAX_ATTEMPTS = 4
 
 
+def _status_codes(exc: BaseException | None):
+    while exc is not None:
+        yield exc, getattr(exc, "code", None)
+        exc = exc.__cause__
+
+
 def is_transient(exc: BaseException | None) -> bool:
     """True for rate limits (429) and server errors (5xx), even when wrapped in another error."""
-    while exc is not None:
-        if isinstance(exc, (ModelRateLimitError, ModelAPIError)):
+    for err, code in _status_codes(exc):
+        if isinstance(err, (ModelRateLimitError, ModelAPIError)):
             return True
         # Embeddings wrap the SDK error generically; its HTTP status survives on __cause__.code.
-        code = getattr(exc, "code", None)
         if isinstance(code, int) and (code == 429 or 500 <= code < 600):
             return True
-        exc = exc.__cause__
+    return False
+
+
+def is_config_error(exc: BaseException | None) -> bool:
+    """True for bad key (401), no access (403) or unknown model (404): retrying can't help."""
+    for err, code in _status_codes(exc):
+        if isinstance(err, (ModelAuthenticationError, ModelPermissionDeniedError, ModelNotFoundError)):
+            return True
+        if code in (401, 403, 404):
+            return True
     return False
 
 
