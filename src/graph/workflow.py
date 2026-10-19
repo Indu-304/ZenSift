@@ -19,11 +19,13 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from src.agents.editor import editor_node
 from src.agents.planner import planner_node
 from src.agents.sifter import sifter_node
 from src.graph.state import Article, ZenSiftState
 from src.utils.deduplicate import db_path_from_env, get_sent_urls, mark_sent
 from src.utils.fetcher import fetcher_node
+from src.utils.sanitizer import sanitizer_node
 
 __all__ = ["Article", "ZenSiftState", "build_graph", "compile_workflow", "run"]
 
@@ -55,16 +57,6 @@ def deduplicate_node(state: ZenSiftState) -> dict:
         seen.add(article.url)
         fresh.append(article)
     return {"fresh_articles": fresh}
-
-
-def sanitizer_node(state: ZenSiftState) -> dict:
-    """Step 5: wrap article text in <article> delimiters."""
-    return {"sanitized_articles": []}
-
-
-def editor_node(state: ZenSiftState) -> dict:
-    """Step 5: summarize with the editor persona."""
-    return {"digest_articles": state.get("sifted_articles", [])}
 
 
 def fallback_node(state: ZenSiftState) -> dict:
