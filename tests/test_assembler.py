@@ -108,6 +108,25 @@ def test_link_label_without_source():
     assert "Read the full story" in html
 
 
+@pytest.mark.parametrize(
+    ("source", "shown"),
+    [
+        ("tech-insider.org", "Tech Insider"),
+        ("www.example.com", "Example"),
+        ("bbc.co.uk", "Bbc"),
+        ("The Times", "The Times"),
+        ("Hugging Face", "Hugging Face"),
+    ],
+)
+def test_domain_sources_are_shown_as_names_so_mail_apps_do_not_link_them(source, shown):
+    article = art().model_copy(update={"source": source})
+
+    html = render_html([article], DAY, degraded=False)
+
+    assert f">{shown}</p>" in html and f"Read at {shown}" in html
+    assert shown.upper() in render_text([article], DAY, degraded=False)
+
+
 def test_degraded_items_show_opening_lines_not_headline():
     body = "First sentence of the story is calm. " * 20
     fallback = Article(title="Fallback headline", url="https://x.example", source="Wire", body=body)

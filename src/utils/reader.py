@@ -6,6 +6,7 @@ import logging
 import re
 import time
 from html.parser import HTMLParser
+from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
@@ -23,6 +24,9 @@ MAX_PAGE_BYTES = 2 * 1024 * 1024
 MIN_PARAGRAPH_CHARS = 60
 MAX_BODY_CHARS = 2000
 GOOGLE_NEWS_HOST = "news.google.com"
+RETRY_STATUSES = {429, 503}
+DEFAULT_RETRY_WAIT_SECONDS = 5.0
+MAX_RETRY_WAIT_SECONDS = 15.0
 
 _WHITESPACE = re.compile(r"\s+")
 _CHARSET = re.compile(r"charset=[\"']?([\w.:-]+)", re.IGNORECASE)
@@ -121,6 +125,28 @@ def fetch_article_text(url: str, timeout: float = REQUEST_TIMEOUT_SECONDS) -> st
     return extract_paragraphs(page)
 
 
+def _retry_wait(exc: HTTPError) -> float:
+    try:
+        wait = float(exc.headers.get("Retry-After", DEFAULT_RETRY_WAIT_SECONDS))
+    except (TypeError, ValueError):
+        # Retry-After may be an HTTP date; not worth parsing for one retry.
+        wait = DEFAULT_RETRY_WAIT_SECONDS
+    return min(max(wait, 1.0), MAX_RETRY_WAIT_SECONDS)
+
+
+def fetch_with_retry(url: str) -> str:
+    """Fetch once more after a rate-limit or overload response, honouring Retry-After."""
+    try:
+        return fetch_article_text(url)
+    except HTTPError as exc:
+        if exc.code not in RETRY_STATUSES:
+            raise
+        wait = _retry_wait(exc)
+        logger.info("%s answered %d; retrying once in %.0fs.", url, exc.code, wait)
+        time.sleep(wait)
+        return fetch_article_text(url)
+
+
 def read_articles(
     articles: list[Article], delay: float = REQUEST_DELAY_SECONDS
 ) -> tuple[list[Article], list[str]]:
@@ -130,16 +156,20 @@ def read_articles(
     for i, article in enumerate(articles):
         if i > 0:
             time.sleep(delay)
+        target = None
         try:
             target = resolve_url(article.url)
-            body = fetch_article_text(target) if target else ""
+            body = fetch_with_retry(target) if target else ""
         except Exception as exc:
-            logger.warning("Dropping %s: could not read it (%r)", article.url, exc)
-            errors.append(f"reader: {article.url}: {exc!r}")
+            # The publisher URL is shorter and says which site refused, unlike the Google link.
+            shown = target or article.url
+            logger.warning("Dropping %s: could not read it (%r)", shown, exc)
+            errors.append(f"reader: {shown}: {exc!r}")
             continue
         if not body:
-            logger.warning("Dropping %s: no readable article text.", article.url)
-            errors.append(f"reader: {article.url}: no readable article text")
+            shown = target or article.url
+            logger.warning("Dropping %s: no readable article text.", shown)
+            errors.append(f"reader: {shown}: no readable article text")
             continue
         kept.append(article.model_copy(update={"body": body, "link": target}))
     return kept, errors
