@@ -1,8 +1,8 @@
 """Sifter: keep only articles whose meaning is close to the user's interests.
 
-Embeds interests, avoid topics and articles, scores every article against each of
-them in an in-memory ChromaDB collection, then keeps articles that are closer to
-the interests than to any avoid topic and above the similarity threshold.
+Embeds each interest, each avoid topic and each article, scores every article
+against all of them in an in-memory ChromaDB collection, then keeps articles whose
+best interest score is above the threshold and clearly beats every avoid topic.
 """
 
 from __future__ import annotations
@@ -19,8 +19,10 @@ from src.graph.state import Article, ZenSiftState
 
 logger = logging.getLogger(__name__)
 
-# Starting point only; calibrate against real scores (they're logged at INFO).
-SIMILARITY_THRESHOLD = 0.75
+# Calibrated on one real run (scores clustered 0.54-0.70); recalibrate when wording changes.
+SIMILARITY_THRESHOLD = 0.64
+# Interest score must beat the closest avoid score by more than this.
+MIN_MARGIN = 0.05
 MAX_ARTICLES = 8
 
 
@@ -67,27 +69,36 @@ def similarity_matrix(
 
 
 def sift(
-    interests: str,
+    interests: list[str],
     articles: list[Article],
     embeddings: GoogleGenerativeAIEmbeddings,
     avoid: list[str] | None = None,
     threshold: float = SIMILARITY_THRESHOLD,
+    min_margin: float = MIN_MARGIN,
     max_articles: int = MAX_ARTICLES,
 ) -> list[Article]:
     if not articles:
         return []
+    interests = [topic for topic in interests if topic.strip()]
+    if not interests:
+        raise ValueError("At least one interest is required.")
     avoid = [topic for topic in (avoid or []) if topic.strip()]
     query_vectors, doc_vectors = embed_texts(
-        embeddings, [interests, *avoid], [article_text(a) for a in articles]
+        embeddings, [*interests, *avoid], [article_text(a) for a in articles]
     )
-    interest_scores, *avoid_rows = similarity_matrix(query_vectors, doc_vectors)
+    matrix = similarity_matrix(query_vectors, doc_vectors)
+    interest_rows, avoid_rows = matrix[: len(interests)], matrix[len(interests) :]
+
+    # An article only needs to match one interest well; scoring against the average would dilute it.
+    best = [max(range(len(interests)), key=lambda q: interest_rows[q][i]) for i in range(len(articles))]
+    scores = [interest_rows[best[i]][i] for i in range(len(articles))]
 
     kept: list[Article] = []
-    for i in sorted(range(len(articles)), key=lambda i: interest_scores[i], reverse=True):
-        article, score = articles[i], interest_scores[i]
+    for i in sorted(range(len(articles)), key=lambda i: scores[i], reverse=True):
+        article, score = articles[i], scores[i]
         avoid_score = max((row[i] for row in avoid_rows), default=None)
 
-        if avoid_score is not None and avoid_score >= score:
+        if avoid_score is not None and score - avoid_score <= min_margin:
             verdict = "drop (avoid)"
         elif score <= threshold:
             verdict = "drop (below threshold)"
@@ -105,7 +116,8 @@ def sift(
             )
         avoid_text = "  -  " if avoid_score is None else f"{avoid_score:.3f}"
         logger.info(
-            "%-22s interest=%.3f avoid=%s  %s", verdict, score, avoid_text, article.title[:70]
+            "%-22s interest=%.3f (#%d) avoid=%s  %s",
+            verdict, score, best[i] + 1, avoid_text, article.title[:70],
         )
 
     logger.info("Sifter kept %d of %d articles.", len(kept), len(articles))

@@ -11,12 +11,16 @@ from src.agents import planner
 from src.agents.planner import (
     PLANNER_SYSTEM_PROMPT,
     SearchPlan,
+    fallback_query,
     generate_plan,
     google_news_rss_url,
     planner_node,
 )
 
-INTERESTS = "German AI master's policies and open source LLMs, no political drama"
+INTERESTS = [
+    "AI master's programs at German universities",
+    "Open-source LLM releases",
+]
 
 PLAN = SearchPlan(
     google_news_queries=[
@@ -95,7 +99,7 @@ def test_generate_plan_uses_structured_output_and_prompts():
     assert isinstance(messages[0], SystemMessage)
     assert messages[0].content == PLANNER_SYSTEM_PROMPT
     assert isinstance(messages[1], HumanMessage)
-    assert INTERESTS in messages[1].content
+    assert all(f"- {topic}" in messages[1].content for topic in INTERESTS)
 
 
 def test_generate_plan_retries_on_rate_limit_then_succeeds(no_retry_sleep):
@@ -143,15 +147,19 @@ def test_planner_node_degrades_to_raw_interests_when_llm_is_down(mocker):
 
     result = planner_node({"interests": INTERESTS})
 
-    assert result["rss_urls"] == [google_news_rss_url(INTERESTS)]
+    assert result["rss_urls"] == [google_news_rss_url(fallback_query(INTERESTS))]
     assert result["hn_queries"] == []
     assert any(e.startswith("planner:") for e in result["errors"])
+
+
+def test_fallback_query_ors_all_interests():
+    assert fallback_query(["a b", "c"]) == "(a b) OR (c)"
 
 
 def test_planner_node_truncates_fallback_query(mocker):
     mocker.patch.object(planner, "build_chat_model", side_effect=ValueError("no API key"))
 
-    result = planner_node({"interests": "x" * 1000})
+    result = planner_node({"interests": ["x" * 1000]})
 
     q = parse_qs(urlparse(result["rss_urls"][0]).query)["q"][0]
     assert len(q) == planner.MAX_FALLBACK_QUERY_CHARS

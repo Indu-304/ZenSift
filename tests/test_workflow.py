@@ -4,7 +4,7 @@ from src.graph import workflow
 from src.graph.workflow import Article, compile_workflow
 from src.utils.deduplicate import get_sent_urls, mark_sent
 
-INPUT = {"email": "a@b.com", "interests": "open source LLMs", "errors": []}
+INPUT = {"email": "a@b.com", "interests": ["open source LLMs"], "errors": []}
 
 
 @pytest.fixture(autouse=True)

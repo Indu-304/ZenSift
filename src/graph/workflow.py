@@ -163,7 +163,7 @@ def compile_workflow() -> CompiledStateGraph:
     return build_graph().compile()
 
 
-def run(email: str, interests: str, avoid: list[str] | None = None) -> ZenSiftState:
+def run(email: str, interests: list[str], avoid: list[str] | None = None) -> ZenSiftState:
     app = compile_workflow()
     return app.invoke(
         {"email": email, "interests": interests, "avoid": avoid or [], "errors": []}

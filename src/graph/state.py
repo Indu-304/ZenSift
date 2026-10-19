@@ -22,7 +22,7 @@ class Article(BaseModel):
 class ZenSiftState(TypedDict, total=False):
     # Input
     email: str
-    interests: str
+    interests: list[str]
     avoid: list[str]
 
     # Planner output
