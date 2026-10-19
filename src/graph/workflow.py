@@ -20,6 +20,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.planner import planner_node
+from src.agents.sifter import sifter_node
 from src.graph.state import Article, ZenSiftState
 from src.utils.deduplicate import db_path_from_env, get_sent_urls, mark_sent
 from src.utils.fetcher import fetcher_node
@@ -54,11 +55,6 @@ def deduplicate_node(state: ZenSiftState) -> dict:
         seen.add(article.url)
         fresh.append(article)
     return {"fresh_articles": fresh}
-
-
-def sifter_node(state: ZenSiftState) -> dict:
-    """Step 4: embed + keep articles with cosine similarity > threshold (top N)."""
-    return {"sifted_articles": state.get("fresh_articles", [])}
 
 
 def sanitizer_node(state: ZenSiftState) -> dict:
@@ -167,6 +163,8 @@ def compile_workflow() -> CompiledStateGraph:
     return build_graph().compile()
 
 
-def run(email: str, interests: str) -> ZenSiftState:
+def run(email: str, interests: str, avoid: list[str] | None = None) -> ZenSiftState:
     app = compile_workflow()
-    return app.invoke({"email": email, "interests": interests, "errors": []})
+    return app.invoke(
+        {"email": email, "interests": interests, "avoid": avoid or [], "errors": []}
+    )
