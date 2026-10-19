@@ -28,3 +28,15 @@ def block_feed_network(mocker):
         "src.utils.fetcher.urlopen",
         side_effect=AssertionError("Real network call attempted in tests"),
     )
+
+
+@pytest.fixture(autouse=True)
+def block_article_network(mocker):
+    mocker.patch(
+        "src.utils.reader.urlopen",
+        side_effect=AssertionError("Real network call attempted in tests"),
+    )
+    mocker.patch(
+        "src.utils.reader.gnewsdecoder",
+        side_effect=AssertionError("Real network call attempted in tests"),
+    )

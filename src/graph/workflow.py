@@ -1,10 +1,10 @@
 """LangGraph DAG for the ZenSift daily digest.
 
 Flow:
-    planner -> fetcher -> deduplicate -> sifter -[ok]-> sanitizer -> editor -[ok]-> assembler
-                                           |                          |              ^
-                                           +--[llm_down]--> fallback <+--[llm_down]  |
-                                                               +---------------------+
+    planner -> fetcher -> deduplicate -> sifter -[ok]-> reader -> sanitizer -> editor -[ok]-> assembler
+                                           |                                          |              ^
+                                           +--[llm_down]--> fallback <----------------+--[llm_down]  |
+                                                               +-------------------------------------+
     assembler -> delivery -[delivered]-> record_sent -> END
                           -[failed]----> END   (includes "already_sent": duplicate blocked)
 """
@@ -30,11 +30,14 @@ from src.utils.assembler import assembler_node
 from src.utils.deduplicate import db_path_from_env, get_sent_urls, mark_sent
 from src.utils.delivery import delivery_node, idempotency_key
 from src.utils.fetcher import fetcher_node
+from src.utils.reader import read_articles, reader_node
 from src.utils.sanitizer import sanitizer_node
 
 __all__ = ["Article", "ZenSiftState", "build_graph", "compile_workflow", "run"]
 
 FALLBACK_ARTICLE_COUNT = 3
+# Extra candidates so a few unreadable pages still leave enough for the fallback.
+FALLBACK_CANDIDATES = 6
 
 Node = Callable[[ZenSiftState], dict]
 
@@ -65,9 +68,20 @@ def deduplicate_node(state: ZenSiftState) -> dict:
 
 
 def fallback_node(state: ZenSiftState) -> dict:
-    """Top 3 fetched articles, untouched by AI. Uses the deduped list to avoid repeats."""
-    articles = state.get("fresh_articles", [])[:FALLBACK_ARTICLE_COUNT]
-    return {"digest_articles": articles, "degraded": True}
+    """Top 3 readable articles, untouched by AI, shown as their opening lines."""
+    already_read = [a for a in state.get("sifted_articles", []) if a.body]
+    if already_read:
+        return {"digest_articles": already_read[:FALLBACK_ARTICLE_COUNT], "degraded": True}
+
+    # Uses the deduped list to avoid repeats.
+    candidates = state.get("fresh_articles", [])[:FALLBACK_CANDIDATES]
+    readable, errors = read_articles(candidates)
+    return {
+        "digest_articles": readable[:FALLBACK_ARTICLE_COUNT],
+        "degraded": True,
+        "unreadable_count": len(candidates) - len(readable),
+        "errors": errors,
+    }
 
 
 def record_sent_node(state: ZenSiftState) -> dict:
@@ -120,6 +134,7 @@ def build_graph() -> StateGraph:
     graph.add_node("fetcher", fetcher_node)
     graph.add_node("deduplicate", deduplicate_node)
     graph.add_node("sifter", llm_guarded("sifter", sifter_node))
+    graph.add_node("reader", reader_node)
     graph.add_node("sanitizer", sanitizer_node)
     graph.add_node("editor", llm_guarded("editor", editor_node))
     graph.add_node("fallback", fallback_node)
@@ -132,8 +147,9 @@ def build_graph() -> StateGraph:
     graph.add_edge("fetcher", "deduplicate")
     graph.add_edge("deduplicate", "sifter")
     graph.add_conditional_edges(
-        "sifter", route_on_llm, {"ok": "sanitizer", "llm_down": "fallback"}
+        "sifter", route_on_llm, {"ok": "reader", "llm_down": "fallback"}
     )
+    graph.add_edge("reader", "sanitizer")
     graph.add_edge("sanitizer", "editor")
     graph.add_conditional_edges(
         "editor", route_on_llm, {"ok": "assembler", "llm_down": "fallback"}

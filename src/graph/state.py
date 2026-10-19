@@ -14,7 +14,10 @@ from src.config import DigestSettings, SifterSettings
 class Article(BaseModel):
     title: str
     url: str
+    # Publisher URL resolved by the reader; `url` stays the feed URL so dedup keeps matching.
+    link: str = ""
     snippet: str = ""
+    body: str = ""
     source: str = ""
     similarity: float | None = None
     avoid_similarity: float | None = None
@@ -41,6 +44,7 @@ class ZenSiftState(TypedDict, total=False):
     sifted_articles: list[Article]
     sanitized_articles: list[str]
     digest_articles: list[Article]
+    unreadable_count: int
 
     # Output
     email_subject: str

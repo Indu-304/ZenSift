@@ -11,7 +11,7 @@ from src.graph.state import Article
 from src.utils.sanitizer import wrap_article
 
 ARTICLES = [
-    Article(title=f"Story {i}", url=f"https://x/{i}", snippet=f"Text {i}.", similarity=0.7)
+    Article(title=f"Story {i}", url=f"https://x/{i}", body=f"Text {i}.", similarity=0.7)
     for i in range(3)
 ]
 BLOCKS = [wrap_article(a, i) for i, a in enumerate(ARTICLES, start=1)]
