@@ -40,7 +40,11 @@ class SearchPlan(BaseModel):
     hackernews_keywords: list[Query] = Field(
         min_length=3,
         max_length=3,
-        description="Exactly 3 short keyword phrases for Hacker News search.",
+        description=(
+            "Exactly 3 Hacker News search keywords, 1-2 words each and one concept per "
+            "keyword (e.g. 'Mistral', 'open-weight model'). Every word must appear in a "
+            "story title to match, so never combine several names in one keyword."
+        ),
     )
 
 
