@@ -5,21 +5,29 @@ email: "you@example.com"
 # 24h "HH:MM" in UTC. The GitHub Actions cron schedule must be kept in sync.
 delivery_time: "07:00"
 
-# Describe what you WANT. Don't write "no X" here: embeddings can't negate, so
-# "no politics" would actually attract political articles. Use `avoid` instead.
-interests: >
-  German AI master's program policies and open-source LLMs.
+# What you WANT, one topic per entry. Each article is scored against its best-matching
+# topic, so mixing two subjects in one line dilutes both. Write each entry the way a
+# relevant article would describe itself (concrete nouns, names), not as a short label.
+# Don't write "no X" here: embeddings can't negate. Use `avoid` instead.
+interests:
+  - >-
+    Admission requirements, scholarships, tuition and student visa rules for
+    AI and machine learning master's programs at German universities
+  - >-
+    New open-source and open-weight large language model (LLM) releases,
+    benchmarks and licenses, such as Llama, Mistral, Qwen and DeepSeek
 
-# Topics to filter out. An article is dropped if it's at least as close to any
-# of these as it is to your interests. One topic per line works best.
+# Topics to filter out. An article is dropped unless it matches your interests
+# clearly better (by sifter.min_margin) than its closest avoid topic.
 avoid:
-  - political drama and partisan fighting
-  - outrage, rage-bait and culture-war controversy
-  - celebrity gossip
+  - Partisan political fights, diplomatic disputes and politicians attacking each other
+  - Outrage, scandal and rage-bait stories written to provoke anger
+  - Celebrity, athlete and influencer gossip and personal stories
 
 # Tunables (safe defaults; override only if needed)
 sifter:
-  similarity_threshold: 0.75 # calibrate from real scores (logged by the Sifter)
+  similarity_threshold: 0.64 # calibrated on real scores; recalibrate after editing topics
+  min_margin: 0.05 # interest score must beat the closest avoid score by more than this
   max_articles: 8 # hard cap on articles sent to the Editor LLM (5-10)
 
 fetcher:

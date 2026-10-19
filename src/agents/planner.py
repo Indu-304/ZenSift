@@ -50,14 +50,19 @@ def google_news_rss_url(query: str, hl: str = "en-US", gl: str = "US", ceid: str
 
 
 @llm_retry
-def generate_plan(interests: str, llm: BaseChatModel) -> SearchPlan:
+def generate_plan(interests: list[str], llm: BaseChatModel) -> SearchPlan:
     structured_llm = llm.with_structured_output(SearchPlan)
+    goals = "\n".join(f"- {topic}" for topic in interests)
     return structured_llm.invoke(
         [
             SystemMessage(content=PLANNER_SYSTEM_PROMPT),
-            HumanMessage(content=f"User goal:\n{interests}"),
+            HumanMessage(content=f"User goals:\n{goals}"),
         ]
     )
+
+
+def fallback_query(interests: list[str]) -> str:
+    return " OR ".join(f"({topic})" for topic in interests)[:MAX_FALLBACK_QUERY_CHARS]
 
 
 def planner_node(state: ZenSiftState) -> dict:
@@ -65,10 +70,10 @@ def planner_node(state: ZenSiftState) -> dict:
     try:
         plan = generate_plan(interests, build_chat_model(temperature=0.2))
     except Exception as exc:
-        # No fallback edge after the planner; search the raw goal so the email still goes out.
+        # No fallback edge after the planner; search the raw goals so the email still goes out.
         logger.exception("Planner failed; falling back to raw interests as the query.")
         return {
-            "rss_urls": [google_news_rss_url(interests[:MAX_FALLBACK_QUERY_CHARS])],
+            "rss_urls": [google_news_rss_url(fallback_query(interests))],
             "hn_queries": [],
             "errors": [f"planner: {exc!r}"],
         }

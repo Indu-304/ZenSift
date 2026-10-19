@@ -15,7 +15,7 @@ from src.agents.sifter import (
 )
 from src.graph.state import Article
 
-INTERESTS = "open source LLMs"
+INTERESTS = ["open source LLMs"]
 QUERY = [1.0, 0.0]
 
 
@@ -34,15 +34,17 @@ class FakeTransientError(Exception):
     code = 429
 
 
-def fake_embeddings(doc_vectors=VECTORS, avoid_vectors=(), errors=None) -> MagicMock:
-    """Fake Gemini embeddings: queries -> [QUERY, *avoid_vectors]; documents -> doc_vectors."""
+def fake_embeddings(
+    doc_vectors=VECTORS, avoid_vectors=(), errors=None, interest_vectors=(QUERY,)
+) -> MagicMock:
+    """Fake Gemini embeddings: queries -> [*interest_vectors, *avoid_vectors]; documents -> doc_vectors."""
     pending = list(errors or [])
 
     def embed_documents(texts, task_type=None):
         if pending:
             raise pending.pop(0)
         if task_type == "RETRIEVAL_QUERY":
-            return [QUERY, *avoid_vectors]
+            return [*interest_vectors, *avoid_vectors]
         return doc_vectors
 
     emb = MagicMock()
@@ -115,6 +117,29 @@ def test_sift_can_return_nothing_when_all_irrelevant():
     assert sift(INTERESTS, ARTICLES, fake_embeddings(doc_vectors=[unit(90)] * 5)) == []
 
 
+def test_sift_requires_at_least_one_interest():
+    with pytest.raises(ValueError):
+        sift(["  "], ARTICLES, fake_embeddings())
+
+
+# --- sift: several interests -------------------------------------------------
+
+
+def test_article_is_scored_against_its_best_matching_interest():
+    # Interest 1 points east, interest 2 points north; the article (85 deg) matches interest 2.
+    emb = fake_embeddings(doc_vectors=[unit(85)], interest_vectors=[unit(0), unit(90)])
+
+    kept = sift(["masters", "llms"], [ARTICLES[0]], emb, threshold=0.75)
+
+    assert kept[0].similarity == pytest.approx(math.cos(math.radians(5)), abs=1e-3)
+
+
+def test_single_blended_interest_would_have_missed_it():
+    emb = fake_embeddings(doc_vectors=[unit(85)], interest_vectors=[unit(0)])
+
+    assert sift(["masters"], [ARTICLES[0]], emb, threshold=0.75) == []
+
+
 # --- sift: interests vs avoid ------------------------------------------------
 # Picture a compass: interests point east (0 deg), "political drama" points north (90 deg).
 
@@ -158,13 +183,23 @@ def test_avoid_does_not_drop_article_closer_to_interests():
     assert [a.url for a in kept] == [ON_TOPIC.url]
 
 
+def test_narrow_win_over_avoid_is_dropped_by_margin():
+    # interest = cos(30) = 0.866, avoid = cos(33) = 0.839: a win of only 0.027.
+    emb = fake_embeddings(doc_vectors=[unit(30)], avoid_vectors=[unit(63)])
+
+    assert sift(INTERESTS, [ON_TOPIC], emb, avoid=["x"], threshold=0.75, min_margin=0.05) == []
+    emb = fake_embeddings(doc_vectors=[unit(30)], avoid_vectors=[unit(63)])
+    kept = sift(INTERESTS, [ON_TOPIC], emb, avoid=["x"], threshold=0.75, min_margin=0.0)
+    assert [a.url for a in kept] == [ON_TOPIC.url]
+
+
 def test_interests_and_avoid_embedded_together_as_queries_articles_as_documents():
     emb = fake_embeddings(avoid_vectors=[unit(90)])
 
     sift(INTERESTS, ARTICLES, emb, avoid=["political drama"])
 
     query_call, doc_call = emb.embed_documents.call_args_list
-    assert query_call.args[0] == [INTERESTS, "political drama"]
+    assert query_call.args[0] == [*INTERESTS, "political drama"]
     assert query_call.kwargs["task_type"] == "RETRIEVAL_QUERY"
     assert doc_call.args[0] == [article_text(a) for a in ARTICLES]
     assert doc_call.kwargs["task_type"] == "RETRIEVAL_DOCUMENT"
@@ -176,7 +211,7 @@ def test_blank_avoid_topics_are_ignored():
 
     sift(INTERESTS, ARTICLES, emb, avoid=["", "   "])
 
-    assert emb.embed_documents.call_args_list[0].args[0] == [INTERESTS]
+    assert emb.embed_documents.call_args_list[0].args[0] == INTERESTS
 
 
 # --- retries -----------------------------------------------------------------
@@ -196,7 +231,7 @@ def wrapped(cause: Exception) -> Exception:
 def test_embedding_rate_limit_is_retried_then_succeeds(no_retry_sleep):
     emb = fake_embeddings(errors=[wrapped(FakeTransientError())])
 
-    kept = sift(INTERESTS, ARTICLES, emb)
+    kept = sift(INTERESTS, ARTICLES, emb, threshold=0.75)
 
     assert len(kept) == 3
     assert emb.embed_documents.call_count == 3  # failed attempt + (queries, documents)
@@ -230,7 +265,10 @@ def test_sifter_node_works_without_avoid(mocker):
 
     result = sifter_node({"interests": INTERESTS, "fresh_articles": ARTICLES})
 
-    assert [a.url for a in result["sifted_articles"]] == ["https://x/1", "https://x/3", "https://x/4"]
+    # Default threshold 0.64 keeps similarities 1.0, 0.866, 0.766 and 0.707.
+    assert [a.url for a in result["sifted_articles"]] == [
+        "https://x/1", "https://x/3", "https://x/4", "https://x/0"
+    ]
 
 
 def test_sifter_node_skips_api_when_nothing_fresh(mocker):
