@@ -6,7 +6,7 @@ Flow:
                                            +--[llm_down]--> fallback <+--[llm_down]  |
                                                                +---------------------+
     assembler -> delivery -[delivered]-> record_sent -> END
-                          -[failed]----> END
+                          -[failed]----> END   (includes "already_sent": duplicate blocked)
 """
 
 from __future__ import annotations
@@ -14,7 +14,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 from collections.abc import Callable
+from datetime import UTC, date, datetime
 from typing import Literal
+from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -22,8 +24,11 @@ from langgraph.graph.state import CompiledStateGraph
 from src.agents.editor import editor_node
 from src.agents.planner import planner_node
 from src.agents.sifter import sifter_node
+from src.config import ZenSiftConfig
 from src.graph.state import Article, ZenSiftState
+from src.utils.assembler import assembler_node
 from src.utils.deduplicate import db_path_from_env, get_sent_urls, mark_sent
+from src.utils.delivery import delivery_node, idempotency_key
 from src.utils.fetcher import fetcher_node
 from src.utils.sanitizer import sanitizer_node
 
@@ -65,16 +70,6 @@ def fallback_node(state: ZenSiftState) -> dict:
     return {"digest_articles": articles, "degraded": True}
 
 
-def assembler_node(state: ZenSiftState) -> dict:
-    """Step 6: render the HTML email. No DB access."""
-    return {"email_html": ""}
-
-
-def delivery_node(state: ZenSiftState) -> dict:
-    """Step 6: send via Resend; "sent" only when Resend confirms with an email id."""
-    return {"delivery_status": "failed"}
-
-
 def record_sent_node(state: ZenSiftState) -> dict:
     """Persist sent URLs. Only reachable after a successful send."""
     urls = [a.url for a in state.get("digest_articles", [])]
@@ -107,9 +102,11 @@ def route_on_llm(state: ZenSiftState) -> Literal["ok", "llm_down"]:
 
 
 def route_on_delivery(state: ZenSiftState) -> Literal["delivered", "failed"]:
-    if state.get("delivery_status") == "sent":
+    status = state.get("delivery_status")
+    if status == "sent":
         return "delivered"
-    logger.error("Delivery failed; URLs not recorded so they can be retried next run.")
+    if status != "already_sent":
+        logger.error("Delivery failed; URLs not recorded so they can be retried next run.")
     return "failed"
 
 
@@ -155,8 +152,24 @@ def compile_workflow() -> CompiledStateGraph:
     return build_graph().compile()
 
 
-def run(email: str, interests: list[str], avoid: list[str] | None = None) -> ZenSiftState:
-    app = compile_workflow()
-    return app.invoke(
-        {"email": email, "interests": interests, "avoid": avoid or [], "errors": []}
-    )
+def initial_state(
+    config: ZenSiftConfig, today: date | None = None, force_send: bool = False
+) -> ZenSiftState:
+    digest_date = today or datetime.now(UTC).date()
+    key = idempotency_key(digest_date)
+    if force_send:
+        # Manual testing only: a unique key bypasses today's duplicate protection.
+        key = f"{key}/manual-{uuid4().hex[:8]}"
+    return {
+        "interests": config.interests,
+        "avoid": config.avoid,
+        "sifter": config.sifter,
+        "digest": config.digest,
+        "digest_date": digest_date,
+        "idempotency_key": key,
+        "errors": [],
+    }
+
+
+def run(config: ZenSiftConfig, today: date | None = None, force_send: bool = False) -> ZenSiftState:
+    return compile_workflow().invoke(initial_state(config, today, force_send))

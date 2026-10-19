@@ -10,9 +10,16 @@ def isolated_db(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_real_api_keys(monkeypatch):
-    # Without a key, any accidentally un-mocked Gemini client fails instead of calling the API.
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    # Without keys, any accidentally un-mocked client fails instead of calling a real API.
+    for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "RESEND_API_KEY", "DIGEST_TO_EMAIL"):
+        monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def block_real_email(mocker):
+    return mocker.patch(
+        "resend.Emails.send", side_effect=AssertionError("Real email send attempted in tests")
+    )
 
 
 @pytest.fixture(autouse=True)

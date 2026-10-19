@@ -67,10 +67,10 @@ llm_retry = retry(
 )
 
 
-def build_chat_model(temperature: float) -> ChatGoogleGenerativeAI:
+def build_chat_model() -> ChatGoogleGenerativeAI:
+    # No temperature: Gemini 3.x models use fixed sampling defaults and ignore it.
     return ChatGoogleGenerativeAI(
         model=os.getenv("GEMINI_CHAT_MODEL", DEFAULT_CHAT_MODEL),
-        temperature=temperature,
         # Disable the SDK's built-in retries so tenacity is the single retry layer; 0 means "SDK default".
         max_retries=1,
     )

@@ -72,7 +72,7 @@ def fallback_query(interests: list[str]) -> str:
 def planner_node(state: ZenSiftState) -> dict:
     interests = state["interests"]
     try:
-        plan = generate_plan(interests, build_chat_model(temperature=0.2))
+        plan = generate_plan(interests, build_chat_model())
     except Exception as exc:
         # No fallback edge after the planner; search the raw goals so the email still goes out.
         logger.exception("Planner failed; falling back to raw interests as the query.")

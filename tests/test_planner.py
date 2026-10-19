@@ -172,6 +172,6 @@ def test_build_chat_model_disables_sdk_retries_and_reads_model_from_env(mocker, 
     monkeypatch.setenv("GEMINI_CHAT_MODEL", "gemini-test")
     chat_cls = mocker.patch.object(llm_module, "ChatGoogleGenerativeAI")
 
-    llm_module.build_chat_model(temperature=0.2)
+    llm_module.build_chat_model()
 
-    chat_cls.assert_called_once_with(model="gemini-test", temperature=0.2, max_retries=1)
+    chat_cls.assert_called_once_with(model="gemini-test", max_retries=1)

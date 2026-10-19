@@ -14,8 +14,6 @@ from src.graph.state import ZenSiftState
 
 logger = logging.getLogger(__name__)
 
-EDITOR_TEMPERATURE = 0.3
-
 EDITOR_SYSTEM_PROMPT = (
     # Spec persona prompt, verbatim.
     "You are a witty, calm, insightful editor for a reader with ADHD. Summarize the "
@@ -58,7 +56,7 @@ def editor_node(state: ZenSiftState) -> dict:
     if not articles:
         return {"digest_articles": []}
 
-    llm = build_chat_model(temperature=EDITOR_TEMPERATURE)
+    llm = build_chat_model()
     digest, errors = [], []
     for article, block in zip(articles, blocks, strict=True):
         try:
