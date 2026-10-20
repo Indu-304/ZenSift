@@ -1,9 +1,8 @@
 # ZenSift user configuration. Secrets (API keys, your email address) belong in .env.
 
-# When the email lands, as 24h "HH:MM" in UTC.
-# TEMPORARY test: 12:15 UTC = 17:45 IST. Restore to "02:30" (08:00 IST).
-# The GitHub Action runs ahead of this and Resend holds the email until this time.
-delivery_time: "12:15"
+# When the email lands, as 24h "HH:MM" in UTC. 02:30 UTC = 08:00 IST.
+# The GitHub Action runs about an hour earlier and Resend holds the email until this time.
+delivery_time: "02:30"
 
 # What you WANT, one topic per entry. Each article is scored against its best-matching
 # topic, so mixing two subjects in one line dilutes both. Write each entry the way a
