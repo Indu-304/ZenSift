@@ -57,6 +57,11 @@ def test_system_prompt_grounds_the_model_and_defines_tone_scale():
     assert "ORIGINAL article" in EDITOR_SYSTEM_PROMPT
 
 
+def test_system_prompt_requires_exact_figures():
+    assert "Keep the story's key numbers exactly as written" in EDITOR_SYSTEM_PROMPT
+    assert "Never replace a figure with a vague word" in EDITOR_SYSTEM_PROMPT
+
+
 @pytest.mark.parametrize("tone", [-0.1, 1.1])
 def test_tone_score_must_be_between_0_and_1(tone):
     with pytest.raises(ValidationError):

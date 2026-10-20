@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from typing import Literal
 from uuid import uuid4
 
@@ -173,15 +173,19 @@ def initial_state(
 ) -> ZenSiftState:
     digest_date = today or datetime.now(UTC).date()
     key = idempotency_key(digest_date)
+    deliver_at = None
     if force_send:
-        # Manual testing only: a unique key bypasses today's duplicate protection.
+        # Manual testing only: a unique key bypasses today's duplicate protection, and it sends now.
         key = f"{key}/manual-{uuid4().hex[:8]}"
+    else:
+        deliver_at = datetime.combine(digest_date, time.fromisoformat(config.delivery_time), UTC)
     return {
         "interests": config.interests,
         "avoid": config.avoid,
         "sifter": config.sifter,
         "digest": config.digest,
         "digest_date": digest_date,
+        "deliver_at": deliver_at,
         "idempotency_key": key,
         "errors": [],
     }

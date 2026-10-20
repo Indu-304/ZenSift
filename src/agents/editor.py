@@ -26,6 +26,10 @@ EDITOR_SYSTEM_PROMPT = (
     "Use only facts stated inside the <article> tags. Never add names, numbers, dates or "
     "claims that are not in the text. Summarize what the story says; never describe the "
     "article itself, its length, or what it leaves out.\n\n"
+    # "Avoid sensationalism" alone made the model soften figures ("370% increase" -> "substantial").
+    "Keep the story's key numbers exactly as written: percentages, amounts, counts, prices "
+    "and dates. Never replace a figure with a vague word such as 'substantial', "
+    "'significant' or 'many'. Calm means neutral wording, not fewer facts.\n\n"
     "tone_score rates the ORIGINAL article, not your summary: 1.0 = calm, factual and "
     "measured; 0.5 = somewhat dramatic; 0.0 = alarmist, outrage-driven or clickbait."
 )
@@ -33,7 +37,7 @@ EDITOR_SYSTEM_PROMPT = (
 
 class EditorOutput(BaseModel):
     summary: Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=600)] = Field(
-        description="At most three calm, objective sentences based only on the article text."
+        description="At most three calm, objective sentences based only on the article text, keeping its key figures."
     )
     tone_score: float = Field(
         ge=0.0,
