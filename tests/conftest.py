@@ -11,6 +11,7 @@ def isolated_db(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def no_real_api_keys(monkeypatch):
     # Without keys, any accidentally un-mocked client fails instead of calling a real API.
+    # The Google SDK also reads GOOGLE_API_KEY, so both names are cleared.
     for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "RESEND_API_KEY", "DIGEST_TO_EMAIL"):
         monkeypatch.delenv(var, raising=False)
 

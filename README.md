@@ -68,7 +68,7 @@ Python 3.12 · LangGraph · LangChain · Google Gemini (chat + embeddings) · Ch
 ```bash
 git clone https://github.com/Indu-304/ZenSift.git && cd ZenSift
 poetry install
-cp .env.example .env              # add GOOGLE_API_KEY, RESEND_API_KEY, DIGEST_TO_EMAIL
+cp .env.example .env              # add GEMINI_API_KEY, RESEND_API_KEY, DIGEST_TO_EMAIL
 poetry run python -m src.main --force-send   # send a digest right now
 ```
 
@@ -86,7 +86,7 @@ The `data/` volume keeps the sent-articles ledger between runs. The image contai
 ### Deploy on GitHub Actions
 
 1. Push the repo to GitHub.
-2. Under **Settings → Secrets and variables → Actions**, add the secrets `GOOGLE_API_KEY`, `RESEND_API_KEY` and `DIGEST_TO_EMAIL`.
+2. Under **Settings → Secrets and variables → Actions**, add the secrets `GEMINI_API_KEY`, `RESEND_API_KEY` and `DIGEST_TO_EMAIL`.
 3. Optionally, add the variable `GEMINI_CHAT_MODEL`.
 4. Trigger **Actions → Daily digest → Run workflow** once to confirm the setup.
 
