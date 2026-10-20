@@ -1,0 +1,69 @@
+name: Daily digest
+
+on:
+  schedule:
+    # TEMPORARY test: 12:00 UTC = 17:30 IST, email at 17:45 IST. Restore to "30 1 * * *" (07:00 IST).
+    # GitHub often starts scheduled jobs late, so this runs ahead of time and Resend holds the email
+    # until `delivery_time` in config.yaml.
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      force_send:
+        description: "Send right now with a fresh key (testing; ignores today's duplicate protection)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      DIGEST_TO_EMAIL: ${{ secrets.DIGEST_TO_EMAIL }}
+      GEMINI_CHAT_MODEL: ${{ vars.GEMINI_CHAT_MODEL || 'gemini-3.5-flash-lite' }}
+      GEMINI_EMBEDDING_MODEL: ${{ vars.GEMINI_EMBEDDING_MODEL || 'models/gemini-embedding-001' }}
+      ZENSIFT_DB_PATH: data/zensift.db
+      LANGSMITH_TRACING: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: poetry
+
+      - name: Install dependencies
+        # Dev tools (pytest, RAGAS) are not needed to send the digest.
+        run: poetry install --only main --no-interaction
+
+      # The sent-articles ledger lives in the Actions cache between runs. Caches are immutable,
+      # so each run saves a new one and the next run restores the most recent.
+      - name: Restore sent-articles ledger
+        uses: actions/cache/restore@v4
+        with:
+          path: data/zensift.db
+          key: zensift-db-${{ github.run_id }}
+          restore-keys: zensift-db-
+
+      - name: Build and send digest
+        env:
+          FORCE_SEND: ${{ inputs.force_send && '--force-send' || '' }}
+        run: poetry run python -m src.main $FORCE_SEND
+
+      - name: Save sent-articles ledger
+        if: always() && hashFiles('data/zensift.db') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data/zensift.db
+          key: zensift-db-${{ github.run_id }}-${{ github.run_attempt }}

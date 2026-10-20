@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import operator
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel
@@ -32,6 +32,7 @@ class ZenSiftState(TypedDict, total=False):
     sifter: SifterSettings
     digest: DigestSettings
     digest_date: date
+    deliver_at: datetime | None
     idempotency_key: str
 
     # Planner output
