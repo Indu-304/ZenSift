@@ -19,13 +19,14 @@ interests:
 # Topics to filter out. An article is dropped unless it matches your interests
 # clearly better (by sifter.min_margin) than its closest avoid topic.
 avoid:
-  - Partisan political fights, diplomatic disputes and politicians attacking each other
+  - Partisan political fights, diplomatic disputes, government bans, sanctions, and politicians attacking each other
+  - Tech industry geopolitics, federal restrictions, trade wars, and national security bans on AI software
   - Outrage, scandal and rage-bait stories written to provoke anger
   - Celebrity, athlete and influencer gossip and personal stories
 
 # Tunables (safe defaults; override only if needed)
 sifter:
-  similarity_threshold: 0.62 # calibrated on real scores; recalibrate after editing topics
+  similarity_threshold: 0.65 # calibrated on real scores; recalibrate after editing topics
   min_margin: 0.05 # interest score must beat the closest avoid score by more than this
   max_articles: 8 # hard cap on articles sent to the Editor LLM (5-10)
 

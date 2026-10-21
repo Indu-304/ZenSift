@@ -128,7 +128,13 @@ Each run prints per-article scores, writes a CSV to `data/eval/`, and exits non-
 ### Results
 
 <!-- eval-results:start -->
-_Not measured yet. Run `poetry run python -m scripts.eval_ragas --update-readme` to fill this in._
+Last run: 2026-10-21 · 7 live articles · editor and judge: `gemini-3.5-flash-lite`
+
+| Metric | Result |
+|---|---|
+| Mean faithfulness | **0.88** |
+| Fully faithful summaries | 4 / 7 |
+| Mean summary score | **0.67** |
 <!-- eval-results:end -->
 
 ## Testing
