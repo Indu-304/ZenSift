@@ -9,11 +9,9 @@ delivery_time: "02:30"
 # relevant article would describe itself (concrete nouns, names), not as a short label.
 # Don't write "no X" here: embeddings can't negate. Use `avoid` instead.
 interests:
-  - >-
-    Admission requirements, scholarships, tuition and student visa rules for
+  - Admission requirements, scholarships, tuition and student visa rules for
     AI and machine learning master's programs at German universities
-  - >-
-    New open-source and open-weight large language model (LLM) releases,
+  - New open-source and open-weight large language model (LLM) releases,
     benchmarks and licenses, such as Llama, Mistral, Qwen and DeepSeek
 
 # Topics to filter out. An article is dropped unless it matches your interests
