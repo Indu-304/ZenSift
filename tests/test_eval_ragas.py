@@ -1,4 +1,6 @@
-from scripts.eval_ragas import RESULTS_END, RESULTS_START, results_markdown, update_readme
+from pathlib import Path
+
+from scripts.eval_ragas import EVAL_DIR, RESULTS_END, RESULTS_START, results_markdown, update_readme
 
 SCORES = [
     {"faithfulness": 1.0, "summary_score": 0.6},
@@ -6,6 +8,10 @@ SCORES = [
     {"faithfulness": float("nan"), "summary_score": 0.5},
 ]
 MEANS = {"faithfulness": 0.875, "summary_score": 0.5}
+
+
+def test_eval_output_directory_is_defined():
+    assert EVAL_DIR == Path("data/eval")
 
 
 def test_results_table_reports_means_and_fully_faithful_count():

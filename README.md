@@ -128,13 +128,13 @@ Each run prints per-article scores, writes a CSV to `data/eval/`, and exits non-
 ### Results
 
 <!-- eval-results:start -->
-Last run: 2026-10-22 · 7 articles (saved snapshot) · editor and judge: `gemini-3.5-flash-lite`
+Last run: 2026-10-24 · 8 live articles · editor and judge: `gemini-3.5-flash-lite`
 
 | Metric | Result |
 |---|---|
-| Mean faithfulness | **0.93** |
-| Fully faithful summaries | 5 / 7 |
-| Mean summary score | **0.69** |
+| Mean faithfulness | **0.96** |
+| Fully faithful summaries | 7 / 8 |
+| Mean summary score | **0.71** |
 <!-- eval-results:end -->
 
 ## Testing

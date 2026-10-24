@@ -42,7 +42,7 @@ from src.utils.sanitizer import sanitizer_node
 logger = logging.getLogger("zensift.eval")
 
 EVAL_DIR = Path("data/eval")
-TASK = "Summarize this news article calmly and objectively in at most three sentences."
+TASK = "Extract the core factual data, key metrics, and model names from this article into a brief, density-optimized summary of 1 to 3 sentences."
 METRICS = ("faithfulness", "summary_score")
 README = Path("README.md")
 RESULTS_START = "<!-- eval-results:start -->"

@@ -26,7 +26,7 @@ avoid:
 sifter:
   similarity_threshold: 0.65 # calibrated on real scores; recalibrate after editing topics
   min_margin: 0.05 # interest score must beat the closest avoid score by more than this
-  max_articles: 8 # hard cap on articles sent to the Editor LLM (5-10)
+  max_articles: 10 # hard cap on articles sent to the Editor LLM (5-10)
 
 # Tone rules applied after the Editor scores each article (tone 1.0 = calm, 0.0 = alarmist).
 digest:
