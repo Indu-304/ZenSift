@@ -1,8 +1,5 @@
 # ZenSift settings. Keep secrets in .env.
 
-# Delivery time in UTC; 02:30 UTC = 08:00 IST.
-delivery_time: "02:30"
-
 # One concrete topic per entry. Put exclusions in `avoid`; embeddings don't handle negation.
 interests:
   - Admission requirements, scholarships, tuition and student visa rules for

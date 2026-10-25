@@ -28,7 +28,6 @@ class DigestSettings(_Strict):
 
 
 class ZenSiftConfig(_Strict):
-    delivery_time: str = Field("02:30", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     interests: list[str] = Field(min_length=1)
     avoid: list[str] = Field(default_factory=list)
     sifter: SifterSettings = Field(default_factory=SifterSettings)

@@ -1,10 +1,10 @@
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date
 
 import pytest
 from resend.exceptions import ResendError
 
 from src.utils import delivery
-from src.utils.delivery import FROM_ADDRESS, delivery_node, idempotency_key, schedule_time
+from src.utils.delivery import FROM_ADDRESS, delivery_node, idempotency_key
 
 STATE = {
     "digest_date": date(2026, 10, 20),
@@ -106,32 +106,3 @@ def test_missing_env_fails_before_calling_resend(env, send, monkeypatch, missing
     send.assert_not_called()
 
 
-# --- scheduling --------------------------------------------------------------
-
-NOW = datetime(2026, 10, 20, 1, 35, tzinfo=UTC)
-EIGHT_AM_IST = datetime(2026, 10, 20, 2, 30, tzinfo=UTC)
-
-
-def test_future_delivery_time_is_scheduled():
-    assert schedule_time(EIGHT_AM_IST, NOW) == EIGHT_AM_IST
-
-
-@pytest.mark.parametrize(
-    "now",
-    [EIGHT_AM_IST - timedelta(minutes=1), EIGHT_AM_IST, EIGHT_AM_IST + timedelta(hours=2)],
-)
-def test_late_or_imminent_runs_send_immediately(now):
-    assert schedule_time(EIGHT_AM_IST, now) is None
-
-
-def test_no_delivery_time_sends_immediately():
-    assert schedule_time(None, NOW) is None
-
-
-def test_scheduled_send_passes_iso_time_to_resend(env, send, mocker):
-    mocker.patch.object(delivery, "schedule_time", return_value=EIGHT_AM_IST)
-
-    result = delivery_node({**STATE, "deliver_at": EIGHT_AM_IST})
-
-    assert result["delivery_status"] == "sent"
-    assert send.call_args.args[0]["scheduled_at"] == "2026-10-20T02:30:00+00:00"

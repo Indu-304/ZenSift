@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import date
 
 import pytest
 
@@ -72,7 +72,7 @@ def test_initial_state_carries_config_date_and_daily_key():
     assert state["avoid"] == ["politics"]
     assert state["sifter"] == CONFIG.sifter and state["digest"] == CONFIG.digest
     assert state["idempotency_key"] == "daily-digest/2026-10-20"
-    assert state["deliver_at"] == datetime(2026, 10, 20, 2, 30, tzinfo=UTC)
+    assert "deliver_at" not in state
 
 
 def test_force_send_uses_a_unique_key_each_time():
@@ -81,7 +81,7 @@ def test_force_send_uses_a_unique_key_each_time():
 
     assert a["idempotency_key"].startswith("daily-digest/2026-10-20/manual-")
     assert a["idempotency_key"] != b["idempotency_key"]
-    assert a["deliver_at"] is None
+    assert "deliver_at" not in a
 
 
 def test_already_sent_does_not_record_urls(mocker, isolated_db):

@@ -32,7 +32,6 @@ class ZenSiftState(TypedDict, total=False):
     sifter: SifterSettings
     digest: DigestSettings
     digest_date: date
-    deliver_at: datetime | None
     idempotency_key: str
 
     # Planner output

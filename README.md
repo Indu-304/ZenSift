@@ -72,7 +72,7 @@ cp .env.example .env              # add GEMINI_API_KEY, RESEND_API_KEY, DIGEST_T
 poetry run python -m src.main --force-send   # send a digest right now
 ```
 
-Without `--force-send`, a run sends at most one digest per day and schedules it for `delivery_time`.
+Without `--force-send`, a run sends at most one digest per day and sends immediately.
 
 ### Run with Docker
 
@@ -90,14 +90,13 @@ The `data/` volume keeps the sent-articles ledger between runs. The image contai
 3. Optionally, add the variable `GEMINI_CHAT_MODEL`.
 4. Trigger **Actions → Daily digest → Run workflow** once to confirm the setup.
 
-[`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml) runs ahead of `delivery_time`, and Resend holds the email until that time, so GitHub's scheduling delays don't move the delivery time. The SQLite ledger is kept between runs in the Actions cache.
+Configure cron-job.org to trigger the workflow dispatch at your preferred time. Each run sends the digest as soon as it finishes; the SQLite ledger is kept between runs in the Actions cache.
 
 ## Configuration
 
 All preferences live in [`config.yaml`](config.yaml); secrets live in `.env`.
 
 ```yaml
-delivery_time: "02:30"      # UTC; 08:00 IST
 interests:                  # one concrete topic per entry
   - New open-source and open-weight LLM releases, benchmarks and licenses
 avoid:                      # filtered out unless an interest clearly wins
