@@ -113,6 +113,36 @@ def test_sift_with_no_articles_makes_no_api_call():
     emb.embed_documents.assert_not_called()
 
 
+def test_sift_excludes_configured_source_names_and_domains_before_embedding():
+    articles = [
+        Article(title="blocked domain", url="https://news.google.com/a", source="Shiksha.com"),
+        Article(title="blocked alias", url="https://news.google.com/b", source="Telegraph India"),
+        Article(title="keep", url="https://x/keep", source="Example News"),
+    ]
+    emb = fake_embeddings(doc_vectors=[QUERY])
+
+    kept = sift(
+        INTERESTS,
+        articles,
+        emb,
+        threshold=0.0,
+        exclude_sources=["shiksha.com", "telegraphindia.com"],
+    )
+
+    assert [article.title for article in kept] == ["keep"]
+    assert emb.embed_documents.call_args_list[1].args[0] == [article_text(articles[-1])]
+
+
+def test_sift_returns_empty_without_embedding_when_every_source_is_excluded():
+    emb = fake_embeddings()
+    article = ARTICLES[0].model_copy(update={"source": "Example News"})
+
+    kept = sift(INTERESTS, [article], emb, exclude_sources=["Example News"])
+
+    assert kept == []
+    emb.embed_documents.assert_not_called()
+
+
 def test_sift_can_return_nothing_when_all_irrelevant():
     assert sift(INTERESTS, ARTICLES, fake_embeddings(doc_vectors=[unit(90)] * 5)) == []
 
@@ -258,6 +288,20 @@ def test_sifter_node_passes_avoid_from_state(mocker):
     )
 
     assert [a.url for a in result["sifted_articles"]] == [ON_TOPIC.url]
+
+
+def test_sifter_node_passes_configured_excluded_sources(mocker):
+    blocked = Article(title="Blocked", url="https://x/blocked", source="Shiksha.com")
+    emb = fake_embeddings(doc_vectors=[QUERY])
+    mocker.patch.object(sifter, "build_embeddings", return_value=emb)
+    settings = sifter.SifterSettings(exclude_sources=["shiksha.com"])
+
+    result = sifter_node(
+        {"interests": INTERESTS, "fresh_articles": [blocked], "sifter": settings}
+    )
+
+    assert result["sifted_articles"] == []
+    emb.embed_documents.assert_not_called()
 
 
 def test_sifter_node_works_without_avoid(mocker):

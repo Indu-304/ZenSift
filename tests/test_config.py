@@ -20,6 +20,7 @@ def test_defaults_apply_when_sections_are_omitted(tmp_path):
 
     assert config.avoid == []
     assert config.sifter.max_articles == 8
+    assert config.sifter.exclude_sources == []
     assert config.digest.hard_drop_tone == 0.15
 
 
@@ -34,6 +35,15 @@ def test_email_in_config_is_rejected_because_it_moved_to_env(tmp_path):
 def test_typos_are_rejected():
     with pytest.raises(ValidationError):
         ZenSiftConfig(interests=["x"], sifter={"similarity_treshold": 0.5})
+
+
+def test_source_exclusions_load_from_config(tmp_path):
+    path = tmp_path / "c.yaml"
+    path.write_text("interests: [x]\nsifter:\n  exclude_sources: [example.com, Example News]\n")
+
+    config = load_config(path)
+
+    assert config.sifter.exclude_sources == ["example.com", "Example News"]
 
 
 @pytest.mark.parametrize("bad", [{"interests": []}, {}, {"interests": ["x"], "sifter": {"max_articles": 50}}])

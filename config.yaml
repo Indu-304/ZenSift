@@ -1,35 +1,36 @@
-# ZenSift user configuration. Secrets (API keys, your email address) belong in .env.
+# ZenSift settings. Keep secrets in .env.
 
-# When the email lands, as 24h "HH:MM" in UTC. 02:30 UTC = 08:00 IST.
-# The GitHub Action runs about an hour earlier and Resend holds the email until this time.
+# Delivery time in UTC; 02:30 UTC = 08:00 IST.
 delivery_time: "02:30"
 
-# What you WANT, one topic per entry. Each article is scored against its best-matching
-# topic, so mixing two subjects in one line dilutes both. Write each entry the way a
-# relevant article would describe itself (concrete nouns, names), not as a short label.
-# Don't write "no X" here: embeddings can't negate. Use `avoid` instead.
+# One concrete topic per entry. Put exclusions in `avoid`; embeddings don't handle negation.
 interests:
   - Admission requirements, scholarships, tuition and student visa rules for
     AI and machine learning master's programs at German universities
   - New open-source and open-weight large language model (LLM) releases,
     benchmarks and licenses, such as Llama, Mistral, Qwen and DeepSeek
 
-# Topics to filter out. An article is dropped unless it matches your interests
-# clearly better (by sifter.min_margin) than its closest avoid topic.
+# Articles must match an interest clearly better than an avoid topic.
 avoid:
   - Partisan political fights, diplomatic disputes, government bans, sanctions, and politicians attacking each other
   - Tech industry geopolitics, federal restrictions, trade wars, and national security bans on AI software
   - Outrage, scandal and rage-bait stories written to provoke anger
   - Celebrity, athlete and influencer gossip and personal stories
 
-# Tunables (safe defaults; override only if needed)
+# Sifter settings.
 sifter:
-  similarity_threshold: 0.65 # calibrated on real scores; recalibrate after editing topics
-  min_margin: 0.05 # interest score must beat the closest avoid score by more than this
-  max_articles: 10 # hard cap on articles sent to the Editor LLM (5-10)
+  similarity_threshold: 0.65 # Minimum topic similarity.
+  min_margin: 0.05 # Minimum lead over the closest avoid topic.
+  max_articles: 8 # Maximum stories to summarize.
+  # Publisher domains to skip before scoring.
+  exclude_sources:
+    - shiksha.com
+    - telegraphindia.com
+    - indiaai.gov.in
+    - tech-insider.org
 
-# Tone rules applied after the Editor scores each article (tone 1.0 = calm, 0.0 = alarmist).
+# Tone filters applied after summary scoring (1 = calm, 0 = alarmist).
 digest:
-  hard_drop_tone: 0.15 # drop panic and brainrot below this, whatever the topic
-  avoid_drop_tone: 0.40 # drop avoid-adjacent articles below this tone...
-  avoid_hit_similarity: 0.60 # ...where "avoid-adjacent" means avoid score >= this
+  hard_drop_tone: 0.15 # Always drop below this tone.
+  avoid_drop_tone: 0.40 # Drop avoid-adjacent stories below this tone.
+  avoid_hit_similarity: 0.60 # Defines an avoid-topic match.

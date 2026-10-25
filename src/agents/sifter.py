@@ -8,7 +8,9 @@ best interest score is above the threshold and clearly beats every avoid topic.
 from __future__ import annotations
 
 import logging
+import re
 from uuid import uuid4
+from urllib.parse import urlparse
 
 import chromadb
 from chromadb.config import Settings
@@ -29,6 +31,34 @@ MAX_ARTICLES = _DEFAULTS.max_articles
 
 def article_text(article: Article) -> str:
     return f"{article.title}\n{article.snippet}".strip()
+
+
+def _source_host(value: str) -> str | None:
+    candidate = value.strip().casefold()
+    parsed = urlparse(candidate if "://" in candidate else f"//{candidate}")
+    host = parsed.hostname
+    return host.removeprefix("www.") if host and "." in host else None
+
+
+def _source_key(value: str) -> str:
+    host = _source_host(value)
+    if host:
+        value = host.split(".", 1)[0]
+    return re.sub(r"[^a-z0-9]", "", value.casefold())
+
+
+def _is_excluded_source(article: Article, excluded_sources: list[str]) -> bool:
+    for excluded in excluded_sources:
+        excluded_host = _source_host(excluded)
+        for value in (article.source, article.link, article.url):
+            candidate_host = _source_host(value)
+            if excluded_host and candidate_host and (
+                candidate_host == excluded_host or candidate_host.endswith(f".{excluded_host}")
+            ):
+                return True
+            if _source_key(value) == _source_key(excluded):
+                return True
+    return False
 
 
 @llm_retry
@@ -77,7 +107,16 @@ def sift(
     threshold: float = SIMILARITY_THRESHOLD,
     min_margin: float = MIN_MARGIN,
     max_articles: int = MAX_ARTICLES,
+    exclude_sources: list[str] | None = None,
 ) -> list[Article]:
+    if exclude_sources:
+        filtered = []
+        for article in articles:
+            if _is_excluded_source(article, exclude_sources):
+                logger.info("drop (excluded source: %s)  %s", article.source or article.url, article.title[:70])
+            else:
+                filtered.append(article)
+        articles = filtered
     if not articles:
         return []
     interests = [topic for topic in interests if topic.strip()]
@@ -139,5 +178,6 @@ def sifter_node(state: ZenSiftState) -> dict:
         threshold=settings.similarity_threshold,
         min_margin=settings.min_margin,
         max_articles=settings.max_articles,
+        exclude_sources=settings.exclude_sources,
     )
     return {"sifted_articles": kept}
